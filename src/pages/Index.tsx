@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import Icon from '@/components/ui/icon';
+import ProvinceMap from '@/components/ProvinceMap';
 import {
   Sheet,
   SheetContent,
@@ -16,8 +17,8 @@ import {
 } from '@/components/ui/sheet';
 
 interface MapPoint {
-  x: number;
-  y: number;
+  lng: number;
+  lat: number;
   type: 'pickup' | 'dropoff';
 }
 
@@ -39,8 +40,8 @@ const Index = () => {
   const [orders, setOrders] = useState<Order[]>([
     {
       id: '1',
-      pickup: { x: 30, y: 40, type: 'pickup' },
-      dropoff: { x: 70, y: 60, type: 'dropoff' },
+      pickup: { lng: 34.776, lat: 32.064, type: 'pickup' },
+      dropoff: { lng: 34.790, lat: 32.074, type: 'dropoff' },
       status: 'pending',
       price: 450,
       distance: 5.2,
@@ -48,8 +49,8 @@ const Index = () => {
     },
     {
       id: '2',
-      pickup: { x: 50, y: 30, type: 'pickup' },
-      dropoff: { x: 80, y: 70, type: 'dropoff' },
+      pickup: { lng: 34.770, lat: 32.060, type: 'pickup' },
+      dropoff: { lng: 34.800, lat: 32.080, type: 'dropoff' },
       status: 'pending',
       price: 620,
       distance: 7.8,
@@ -59,26 +60,22 @@ const Index = () => {
   const [isPlacingPickup, setIsPlacingPickup] = useState(false);
   const [isPlacingDropoff, setIsPlacingDropoff] = useState(false);
 
-  const handleMapClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const rect = e.currentTarget.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
+  const handlePickupSet = (point: MapPoint) => {
+    setPickupPoint(point);
+    setIsPlacingPickup(false);
+    toast({
+      title: '📍 Точка подачи установлена',
+      description: 'Теперь укажите точку назначения',
+    });
+  };
 
-    if (isPlacingPickup) {
-      setPickupPoint({ x, y, type: 'pickup' });
-      setIsPlacingPickup(false);
-      toast({
-        title: '📍 Точка подачи установлена',
-        description: 'Теперь укажите точку назначения',
-      });
-    } else if (isPlacingDropoff) {
-      setDropoffPoint({ x, y, type: 'dropoff' });
-      setIsPlacingDropoff(false);
-      toast({
-        title: '🎯 Точка назначения установлена',
-        description: 'Заказ готов к оформлению',
-      });
-    }
+  const handleDropoffSet = (point: MapPoint) => {
+    setDropoffPoint(point);
+    setIsPlacingDropoff(false);
+    toast({
+      title: '🎯 Точка назначения установлена',
+      description: 'Заказ готов к оформлению',
+    });
   };
 
   const handleOrderTaxi = () => {
@@ -91,10 +88,7 @@ const Index = () => {
       return;
     }
 
-    const distance = Math.sqrt(
-      Math.pow(dropoffPoint.x - pickupPoint.x, 2) + 
-      Math.pow(dropoffPoint.y - pickupPoint.y, 2)
-    ) / 10;
+    const distance = calculateDistance(pickupPoint, dropoffPoint);
 
     const newOrder: Order = {
       id: Date.now().toString(),
@@ -126,7 +120,19 @@ const Index = () => {
     });
   };
 
-  const isMobile = window.innerWidth < 768;
+  const calculateDistance = (point1: MapPoint, point2: MapPoint) => {
+    const R = 6371;
+    const dLat = ((point2.lat - point1.lat) * Math.PI) / 180;
+    const dLng = ((point2.lng - point1.lng) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((point1.lat * Math.PI) / 180) *
+        Math.cos((point2.lat * Math.PI) / 180) *
+        Math.sin(dLng / 2) *
+        Math.sin(dLng / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-card">
@@ -232,66 +238,14 @@ const Index = () => {
                   Карта Province
                 </h2>
                 
-                <div 
-                  className="relative w-full aspect-square rounded-2xl overflow-hidden cursor-crosshair border-2 border-border shadow-lg"
-                  onClick={handleMapClick}
-                  style={{
-                    backgroundImage: 'url(https://fantastic-game.ru/openprovincemap/map.png)',
-                    backgroundSize: 'cover',
-                    backgroundPosition: 'center'
-                  }}
-                >
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-secondary/5" />
-                  
-                  {pickupPoint && (
-                    <div 
-                      className="absolute w-10 h-10 -ml-5 -mt-10 animate-scale-in"
-                      style={{ left: `${pickupPoint.x}%`, top: `${pickupPoint.y}%` }}
-                    >
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-primary rounded-full animate-ping opacity-75" />
-                        <div className="relative w-10 h-10 bg-gradient-to-br from-primary to-primary/80 rounded-full shadow-xl flex items-center justify-center border-4 border-white">
-                          <Icon name="MapPin" size={20} className="text-white" />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {dropoffPoint && (
-                    <div 
-                      className="absolute w-10 h-10 -ml-5 -mt-10 animate-scale-in"
-                      style={{ left: `${dropoffPoint.x}%`, top: `${dropoffPoint.y}%` }}
-                    >
-                      <div className="relative">
-                        <div className="absolute inset-0 bg-secondary rounded-full animate-ping opacity-75" />
-                        <div className="relative w-10 h-10 bg-gradient-to-br from-secondary to-secondary/80 rounded-full shadow-xl flex items-center justify-center border-4 border-white">
-                          <Icon name="Flag" size={20} className="text-white" />
-                        </div>
-                      </div>
-                    </div>
-                  )}
-
-                  {pickupPoint && dropoffPoint && (
-                    <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                      <line
-                        x1={`${pickupPoint.x}%`}
-                        y1={`${pickupPoint.y}%`}
-                        x2={`${dropoffPoint.x}%`}
-                        y2={`${dropoffPoint.y}%`}
-                        stroke="url(#lineGradient)"
-                        strokeWidth="3"
-                        strokeDasharray="10,5"
-                        className="animate-fade-in"
-                      />
-                      <defs>
-                        <linearGradient id="lineGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="hsl(var(--primary))" />
-                          <stop offset="100%" stopColor="hsl(var(--secondary))" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                  )}
-                </div>
+                <ProvinceMap
+                  pickupPoint={pickupPoint}
+                  dropoffPoint={dropoffPoint}
+                  isPlacingPickup={isPlacingPickup}
+                  isPlacingDropoff={isPlacingDropoff}
+                  onPickupSet={handlePickupSet}
+                  onDropoffSet={handleDropoffSet}
+                />
 
                 <div className="grid grid-cols-2 gap-3 mt-6">
                   <Button
@@ -361,19 +315,13 @@ const Index = () => {
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">Расстояние</span>
                           <span className="font-bold text-lg">
-                            {(Math.sqrt(
-                              Math.pow(dropoffPoint.x - pickupPoint.x, 2) + 
-                              Math.pow(dropoffPoint.y - pickupPoint.y, 2)
-                            ) / 10).toFixed(1)} км
+                            {calculateDistance(pickupPoint, dropoffPoint).toFixed(1)} км
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-muted-foreground">Примерная стоимость</span>
                           <span className="font-bold text-2xl text-primary">
-                            {Math.round((Math.sqrt(
-                              Math.pow(dropoffPoint.x - pickupPoint.x, 2) + 
-                              Math.pow(dropoffPoint.y - pickupPoint.y, 2)
-                            ) / 10) * 100 + 200)}₽
+                            {Math.round(calculateDistance(pickupPoint, dropoffPoint) * 100 + 200)}₽
                           </span>
                         </div>
                       </div>
@@ -438,11 +386,11 @@ const Index = () => {
                       <div className="space-y-2 mb-4">
                         <div className="flex items-start gap-2">
                           <Icon name="MapPin" size={16} className="text-primary mt-1 flex-shrink-0" />
-                          <span className="text-sm">Точка подачи: ({order.pickup.x.toFixed(0)}%, {order.pickup.y.toFixed(0)}%)</span>
+                          <span className="text-sm">Точка подачи: ({order.pickup.lng.toFixed(3)}, {order.pickup.lat.toFixed(3)})</span>
                         </div>
                         <div className="flex items-start gap-2">
                           <Icon name="Flag" size={16} className="text-secondary mt-1 flex-shrink-0" />
-                          <span className="text-sm">Точка назначения: ({order.dropoff.x.toFixed(0)}%, {order.dropoff.y.toFixed(0)}%)</span>
+                          <span className="text-sm">Точка назначения: ({order.dropoff.lng.toFixed(3)}, {order.dropoff.lat.toFixed(3)})</span>
                         </div>
                       </div>
 
