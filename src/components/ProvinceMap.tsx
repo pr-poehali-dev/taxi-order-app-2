@@ -34,6 +34,8 @@ const ProvinceMap = ({
   const mapRef = useRef<any>(null);
   const pickupMarkerRef = useRef<any>(null);
   const dropoffMarkerRef = useRef<any>(null);
+  const routeLayerId = 'route-layer';
+  const routeSourceId = 'route-source';
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -155,7 +157,13 @@ const ProvinceMap = ({
         .setLngLat([pickupPoint.lng, pickupPoint.lat])
         .addTo(mapRef.current);
     }
-  }, [pickupPoint]);
+
+    if (pickupPoint && dropoffPoint) {
+      updateRoute();
+    } else {
+      removeRoute();
+    }
+  }, [pickupPoint, dropoffPoint]);
 
   useEffect(() => {
     if (!mapRef.current || !window.OPM) return;
@@ -193,6 +201,69 @@ const ProvinceMap = ({
         .addTo(mapRef.current);
     }
   }, [dropoffPoint]);
+
+  const removeRoute = () => {
+    if (!mapRef.current) return;
+    
+    if (mapRef.current.getLayer(routeLayerId)) {
+      mapRef.current.removeLayer(routeLayerId);
+    }
+    if (mapRef.current.getSource(routeSourceId)) {
+      mapRef.current.removeSource(routeSourceId);
+    }
+  };
+
+  const updateRoute = () => {
+    if (!mapRef.current || !pickupPoint || !dropoffPoint) return;
+
+    try {
+      removeRoute();
+
+      const routeGeoJSON = {
+        type: 'Feature',
+        properties: {},
+        geometry: {
+          type: 'LineString',
+          coordinates: [
+            [pickupPoint.lng, pickupPoint.lat],
+            [dropoffPoint.lng, dropoffPoint.lat],
+          ],
+        },
+      };
+
+      mapRef.current.addSource(routeSourceId, {
+        type: 'geojson',
+        data: routeGeoJSON,
+      });
+
+      mapRef.current.addLayer({
+        id: routeLayerId,
+        type: 'line',
+        source: routeSourceId,
+        layout: {
+          'line-join': 'round',
+          'line-cap': 'round',
+        },
+        paint: {
+          'line-color': ['interpolate', ['linear'], ['line-progress'], 0, '#F97316', 1, '#D946EF'],
+          'line-width': 4,
+          'line-opacity': 0.8,
+        },
+      });
+
+      const bounds = [
+        [Math.min(pickupPoint.lng, dropoffPoint.lng), Math.min(pickupPoint.lat, dropoffPoint.lat)],
+        [Math.max(pickupPoint.lng, dropoffPoint.lng), Math.max(pickupPoint.lat, dropoffPoint.lat)],
+      ];
+
+      mapRef.current.fitBounds(bounds, {
+        padding: 80,
+        duration: 1000,
+      });
+    } catch (err) {
+      console.error('Failed to draw route:', err);
+    }
+  };
 
   if (error) {
     return (
